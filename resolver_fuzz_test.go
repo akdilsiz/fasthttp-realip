@@ -5,6 +5,7 @@ package realip
 
 import (
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/valyala/fasthttp"
@@ -12,7 +13,8 @@ import (
 
 // FuzzResolver checks the security invariants of Resolver on arbitrary
 // header text: it never panics, it always returns an IP address (never raw
-// header text) and an untrusted peer always wins over any header.
+// header text), an untrusted peer always wins over any header, and the
+// net/http entry point agrees with the fasthttp one.
 // The go1.18 build tag keeps the module testable on the go.mod minimum.
 func FuzzResolver(f *testing.F) {
 	seeds := []string{
@@ -57,6 +59,14 @@ func FuzzResolver(f *testing.F) {
 
 				if peer == "203.0.113.9" && actual != peer {
 					t.Fatalf("%s %q: untrusted peer overridden by %q", r.header, value, actual)
+				}
+
+				// net/http must agree with fasthttp on the same input.
+				req := &http.Request{Header: http.Header{}, RemoteAddr: net.JoinHostPort(peer, "1")}
+				req.Header.Set(string(r.header), value)
+
+				if httpActual := r.FromHTTPRequest(req); httpActual != actual {
+					t.Fatalf("%s %q: net/http %q != fasthttp %q", r.header, value, httpActual, actual)
 				}
 			}
 		}
