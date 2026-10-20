@@ -2,7 +2,8 @@ package realip
 
 // Resolver map:
 //   - Options / NewResolver: validate configuration once, at startup.
-//   - (*Resolver).FromRequest: trust decision, starting from the TCP peer.
+//   - (*Resolver).FromRequest / FromHTTPRequest: fasthttp and net/http entry
+//     points; resolve: trust decision, starting from the TCP peer.
 //   - X-Forwarded-For walk: right to left, one comma separated hop at a time.
 //   - RFC 7239 Forwarded walk: right to left, quote aware, strict ABNF.
 //   - Single value headers (X-Real-IP, CF-Connecting-IP, ...).
@@ -64,7 +65,7 @@ const (
 	modeSingle
 )
 
-// Resolver returns the client IP of a fasthttp request while trusting only
+// Resolver returns the client IP of a fasthttp or net/http request while trusting only
 // configured proxies. It is safe for concurrent use; it is immutable after
 // NewResolver returns.
 type Resolver struct {
@@ -170,7 +171,8 @@ func parseTrustedProxies(entries []string) ([]*net.IPNet, error) {
 	return nets, nil
 }
 
-// FromRequest returns the client IP in canonical text form (net.IP.String).
+// FromRequest returns the client IP of a fasthttp request in canonical text
+// form (net.IP.String).
 //
 // The TCP peer is returned unless it is a trusted proxy. For a trusted peer
 // the configured header is read from the right: each hop a trusted proxy
@@ -179,23 +181,54 @@ func parseTrustedProxies(entries []string) ([]*net.IPNet, error) {
 // the last verified address is returned, never a guessed one. The result is
 // therefore always an IP address and never raw header text.
 func (r *Resolver) FromRequest(ctx *fasthttp.RequestCtx) string {
-	peer := ctx.RemoteIP()
+	return r.resolve(ctx.RemoteIP(), func() []string { return r.headerLines(ctx) }).String()
+}
 
+// FromHTTPRequest is FromRequest for net/http servers: the peer is taken
+// from req.RemoteAddr, which net/http sets from the TCP connection, and the
+// header lines from req.Header in receive order. A RemoteAddr that is not an
+// "ip:port" (for example a unix socket) is reported as 0.0.0.0, matching
+// fasthttp, and is only trusted if that address is configured.
+func (r *Resolver) FromHTTPRequest(req *http.Request) string {
+	return r.resolve(httpPeerIP(req.RemoteAddr), func() []string { return req.Header.Values(string(r.header)) }).String()
+}
+
+// httpPeerIP parses a net/http RemoteAddr ("ip:port" or "[ipv6]:port").
+// A zone ("[fe80::1%eth0]:80") is rejected by net.ParseIP and yields 0.0.0.0.
+func httpPeerIP(remoteAddr string) net.IP {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return net.IPv4zero
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return net.IPv4zero
+	}
+
+	if ip4 := ip.To4(); ip4 != nil {
+		return ip4
+	}
+
+	return ip
+}
+
+// resolve applies the trust walk shared by both server types. lines is a
+// function so header lines are only collected for a trusted peer.
+func (r *Resolver) resolve(peer net.IP, lines func() []string) net.IP {
 	// Only the TCP peer is unforgeable. If it is not a trusted proxy, no
 	// header value can be trusted, whatever it contains.
 	if !r.isTrusted(peer) {
-		return peer.String()
+		return peer
 	}
-
-	lines := r.headerLines(ctx)
 
 	switch r.mode {
 	case modeXForwardedFor:
-		return walkHops(lines, peer, r.isTrusted, prevXForwardedForHop).String()
+		return walkHops(lines(), peer, r.isTrusted, prevXForwardedForHop)
 	case modeForwarded:
-		return walkHops(lines, peer, r.isTrusted, prevForwardedHop).String()
+		return walkHops(lines(), peer, r.isTrusted, prevForwardedHop)
 	default:
-		return singleValue(lines, peer).String()
+		return singleValue(lines(), peer)
 	}
 }
 

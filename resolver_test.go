@@ -3,6 +3,7 @@ package realip
 import (
 	"bufio"
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -47,13 +48,29 @@ func mustResolver(t *testing.T, opts Options) *Resolver {
 	return r
 }
 
-// runResolve checks every case against r.
+// newHTTPResolverRequest is newResolverRequest for net/http.
+func newHTTPResolverRequest(peer string, headers []header) *http.Request {
+	req := &http.Request{Header: http.Header{}, RemoteAddr: net.JoinHostPort(peer, "40000")}
+
+	for _, h := range headers {
+		req.Header.Add(h.name, h.value)
+	}
+
+	return req
+}
+
+// runResolve checks every case against r for both fasthttp and net/http, so
+// the two entry points cannot drift apart.
 func runResolve(t *testing.T, r *Resolver, cases []testResolve) {
 	t.Helper()
 
 	for _, v := range cases {
 		if actual := r.FromRequest(newResolverRequest(v.peer, v.headers)); actual != v.expected {
 			t.Errorf("%s: expected %s but get %s", v.name, v.expected, actual)
+		}
+
+		if actual := r.FromHTTPRequest(newHTTPResolverRequest(v.peer, v.headers)); actual != v.expected {
+			t.Errorf("%s (net/http): expected %s but get %s", v.name, v.expected, actual)
 		}
 	}
 }
@@ -456,5 +473,29 @@ func TestResolverNonTCPPeer(t *testing.T) {
 	// configured, so the header must be ignored.
 	if actual := r.FromRequest(&ctx); actual != "0.0.0.0" {
 		t.Errorf("expected 0.0.0.0 but get %s", actual)
+	}
+}
+
+func TestResolverHTTPRemoteAddr(t *testing.T) {
+	r := mustResolver(t, Options{TrustedProxies: []string{"10.0.0.0/8"}})
+
+	testData := map[string]string{
+		"10.0.0.2:443":        "198.51.100.7",
+		"[::ffff:10.0.0.2]:1": "198.51.100.7",
+		"203.0.113.9:443":     "203.0.113.9",
+		"[2001:db8::1]:443":   "2001:db8::1",
+		"@":                   "0.0.0.0",
+		"10.0.0.2":            "0.0.0.0",
+		"[fe80::1%eth0]:80":   "0.0.0.0",
+		"":                    "0.0.0.0",
+	}
+
+	for remoteAddr, expected := range testData {
+		req := &http.Request{Header: http.Header{}, RemoteAddr: remoteAddr}
+		req.Header.Set("X-Forwarded-For", "198.51.100.7")
+
+		if actual := r.FromHTTPRequest(req); actual != expected {
+			t.Errorf("RemoteAddr %q: expected %s but get %s", remoteAddr, expected, actual)
+		}
 	}
 }
