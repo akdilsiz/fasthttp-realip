@@ -5,6 +5,15 @@
 Go package that can be used to get client's real public IP from [Fast HTTP](https://github.com/valyala/fasthttp) request, which usually useful for logging HTTP server.
 
 This is fork from [realip](https://github.com/tomasen/realip) for [Fast HTTP](https://github.com/valyala/fasthttp) with some imporvements.
+
+> **Soft fork:** this repository is a soft fork of
+> [ferluci/fasthttp-realip](https://github.com/ferluci/fasthttp-realip)
+> and continues its development under the module path
+> `github.com/akdilsiz/fasthttp-realip`. The public API stays compatible with
+> the original (`FromRequest` is unchanged); new work such as the trusted
+> proxy [`Resolver`](#trusted-proxy-resolver) is also offered upstream
+> ([ferluci/fasthttp-realip#6](https://github.com/ferluci/fasthttp-realip/pull/6)).
+> To migrate, replace the import path; the package name is still `realip`.
 ### Feature
 
 * Follows the rule of X-Real-IP
