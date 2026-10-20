@@ -1,6 +1,6 @@
 # FastHTTP - RealIP
 
-[![GoDoc](https://godoc.org/github.com/ferluci/fast-realip?status.svg)](https://godoc.org/github.com/ferluci/fast-realip)
+[![Go Reference](https://pkg.go.dev/badge/github.com/akdilsiz/fasthttp-realip.svg)](https://pkg.go.dev/github.com/akdilsiz/fasthttp-realip)
 
 Go package that can be used to get client's real public IP from [Fast HTTP](https://github.com/valyala/fasthttp) request, which usually useful for logging HTTP server.
 
@@ -38,7 +38,7 @@ The user ip is determined by the following order:
 
 ## Install
 ```go
-go get -u github.com/ferluci/fast-realip
+go get -u github.com/akdilsiz/fasthttp-realip
 ```
 ## Example
 
@@ -48,7 +48,7 @@ package main
 import (
     "log"
     "github.com/valyala/fasthttp"
-    "github.com/ferluci/fast-realip"
+    realip "github.com/akdilsiz/fasthttp-realip"
 )
 
 func main() {
@@ -76,7 +76,7 @@ package main
 import (
     "log"
 
-    "github.com/ferluci/fast-realip"
+    realip "github.com/akdilsiz/fasthttp-realip"
     "github.com/valyala/fasthttp"
 )
 
