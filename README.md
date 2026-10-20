@@ -194,3 +194,13 @@ Committed code must pass (see `.github/workflows/go.yml`):
 
 `realip_test.go` pins the legacy `FromRequest` behavior; `resolver_test.go`
 and `resolver_fuzz_test.go` cover `Resolver`.
+
+## License
+
+[MIT](LICENSE). This project builds on
+[tomasen/realip](https://github.com/tomasen/realip) (MIT,
+Copyright (c) 2018 SHEN SHENG) and
+[ferluci/fasthttp-realip](https://github.com/ferluci/fasthttp-realip); the
+original copyright notice is kept in [LICENSE](LICENSE). Changes in this soft
+fork are released under the same MIT license,
+Copyright (c) 2026 Abdulkadir D <github.com/akdilsiz>.
