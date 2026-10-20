@@ -107,6 +107,9 @@ func main() {
 }
 ```
 
+For `net/http` servers use `resolver.FromHTTPRequest(r)`; it applies the
+same rules, taking the peer from `r.RemoteAddr`.
+
 `Options.Header` selects the one header your edge proxy writes:
 
 | `Header` | Format | Typical proxy |
@@ -117,6 +120,14 @@ func main() {
 
 `TrustedProxies` takes CIDR blocks or single addresses. An empty list
 trusts nobody and always returns the TCP peer address.
+
+Example: Cloudflare → AWS ELB → nginx → service on the same host. The
+service sees `X-Forwarded-For: client, cloudflare-ip, elb-ip` from peer
+`127.0.0.1`. Trust Cloudflare's ranges
+([ips-v4](https://www.cloudflare.com/ips-v4),
+[ips-v6](https://www.cloudflare.com/ips-v6)), your VPC ranges and loopback;
+the client is the first hop left of a Cloudflare address, and a request that
+reaches the ELB without Cloudflare resolves to its real sender.
 
 How a request is resolved:
 
